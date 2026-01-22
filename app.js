@@ -12,6 +12,7 @@ const resultsBody = document.getElementById('results-body');
 const errorMessage = document.getElementById('error-message');
 const exportCsvBtn = document.getElementById('export-csv');
 const exportJsonBtn = document.getElementById('export-json');
+const exportTxtGmbBtn = document.getElementById('export-txt-gmb');
 
 // Stats elements
 const statTotal = document.getElementById('stat-total');
@@ -26,19 +27,46 @@ const API_ENDPOINT = window.location.hostname === 'localhost'
     ? 'http://localhost:3000/api'
     : '/api';
 
-// Load saved credentials from localStorage
+// Cookie Helper Functions
+function setCookie(name, value, days = 365) {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
+}
+
+function getCookie(name) {
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+    }
+    return null;
+}
+
+// Load saved credentials from cookies and localStorage
 window.addEventListener('DOMContentLoaded', () => {
-    const savedLogin = localStorage.getItem('dataforseo_login');
-    const savedPassword = localStorage.getItem('dataforseo_password');
+    // Try cookies first (persistent), then localStorage
+    const savedLogin = getCookie('dataforseo_login') || localStorage.getItem('dataforseo_login');
+    const savedPassword = getCookie('dataforseo_password') || localStorage.getItem('dataforseo_password');
 
     if (savedLogin) apiLogin.value = savedLogin;
     if (savedPassword) apiPassword.value = savedPassword;
 });
 
-// Save credentials to localStorage
+// Save credentials to both cookies and localStorage
 function saveCredentials() {
-    localStorage.setItem('dataforseo_login', apiLogin.value);
-    localStorage.setItem('dataforseo_password', apiPassword.value);
+    const login = apiLogin.value;
+    const password = apiPassword.value;
+
+    // Save to localStorage (session)
+    localStorage.setItem('dataforseo_login', login);
+    localStorage.setItem('dataforseo_password', password);
+
+    // Save to cookies (persistent for 1 year)
+    setCookie('dataforseo_login', login, 365);
+    setCookie('dataforseo_password', password, 365);
 }
 
 // Show error message
@@ -248,6 +276,28 @@ function exportAsJSON() {
     downloadFile(jsonContent, 'domain-check-results.json', 'application/json');
 }
 
+// Export domains with GMB as TXT (plain text, one domain per line)
+function exportDomainsWithGMB() {
+    if (currentResults.length === 0) {
+        showError('⚠️ Keine Ergebnisse zum Exportieren vorhanden.');
+        return;
+    }
+
+    // Filter only domains with found GMB entries
+    const domainsWithGMB = currentResults
+        .filter(r => r.status === 'found')
+        .map(r => r.domain);
+
+    if (domainsWithGMB.length === 0) {
+        showError('⚠️ Keine Domains mit GMB-Einträgen gefunden.');
+        return;
+    }
+
+    // Create plain text with one domain per line
+    const txtContent = domainsWithGMB.join('\n');
+    downloadFile(txtContent, 'domains-mit-gmb.txt', 'text/plain');
+}
+
 // Download file helper
 function downloadFile(content, filename, contentType) {
     const blob = new Blob([content], { type: contentType });
@@ -266,6 +316,7 @@ startCheckBtn.addEventListener('click', startCheck);
 clearBtn.addEventListener('click', clearInput);
 exportCsvBtn.addEventListener('click', exportAsCSV);
 exportJsonBtn.addEventListener('click', exportAsJSON);
+exportTxtGmbBtn.addEventListener('click', exportDomainsWithGMB);
 
 // Allow Enter key in credentials fields to start check
 apiLogin.addEventListener('keypress', (e) => {

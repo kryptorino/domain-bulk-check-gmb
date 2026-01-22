@@ -3,7 +3,16 @@
     "allow": [
       "Bash(tree:*)",
       "Bash(git add:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(gh auth login:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(gh auth:*)",
+      "Bash(npm install:*)",
+      "Bash(vercel login)",
+      "Bash(vercel:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
