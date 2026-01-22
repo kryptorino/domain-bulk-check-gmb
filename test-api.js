@@ -12,17 +12,17 @@ async function testAPI() {
 
     console.log('=== Testing DataForSEO APIs ===\n');
 
-    // Test 1: Business Data API
-    console.log('TEST 1: Business Data API - My Business Info');
+    // Test 1: Business Data API - task_post endpoint
+    console.log('TEST 1: Business Data API - My Business Info (task_post)');
     try {
         const businessDataRequest = [{
-            "keyword": "Gallaghers Carpet Cleaning",
+            "keyword": "gallagherscleaning.co.uk",
             "language_code": "en",
             "location_name": "United Kingdom"
         }];
 
         const response1 = await axios.post(
-            'https://api.dataforseo.com/v3/business_data/google/my_business_info/live',
+            'https://api.dataforseo.com/v3/business_data/google/my_business_info/task_post',
             businessDataRequest,
             {
                 headers: {
@@ -34,6 +34,26 @@ async function testAPI() {
 
         console.log('Status:', response1.status);
         console.log('Response:', JSON.stringify(response1.data, null, 2));
+
+        // Extract task details
+        if (response1.data.tasks && response1.data.tasks[0]) {
+            const task = response1.data.tasks[0];
+            console.log('\nTask Status Code:', task.status_code);
+            console.log('Task Status Message:', task.status_message);
+
+            if (task.result && task.result[0]) {
+                const result = task.result[0];
+                console.log('Items found:', result.items_count);
+
+                if (result.items && result.items[0]) {
+                    console.log('\nFirst result:');
+                    console.log('- Title:', result.items[0].title);
+                    console.log('- URL:', result.items[0].url);
+                    console.log('- Domain:', result.items[0].domain);
+                    console.log('- Address:', result.items[0].address);
+                }
+            }
+        }
     } catch (error) {
         console.log('ERROR:', error.response?.data || error.message);
     }

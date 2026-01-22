@@ -13,7 +13,10 @@
       "Bash(vercel login)",
       "Bash(vercel:*)",
       "Bash(git commit:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(node:*)",
+      "Bash(pkill:*)"
     ]
   }
 }

@@ -38,68 +38,159 @@ async function makeDataForSEORequest(endpoint, data, credentials) {
 }
 
 /**
+ * Detect location based on domain TLD
+ */
+function getLocationFromDomain(domain) {
+    if (domain.endsWith('.co.uk') || domain.endsWith('.uk')) {
+        return {
+            location_name: 'United Kingdom',
+            language_code: 'en'
+        };
+    } else if (domain.endsWith('.de')) {
+        return {
+            location_name: 'Germany',
+            language_code: 'de'
+        };
+    } else if (domain.endsWith('.com') || domain.endsWith('.net')) {
+        return {
+            location_name: 'United States',
+            language_code: 'en'
+        };
+    }
+    // Default to UK for most cases
+    return {
+        location_name: 'United Kingdom',
+        language_code: 'en'
+    };
+}
+
+/**
+ * Extract business name from domain for better search
+ */
+function extractBusinessName(domain) {
+    // Remove TLD
+    let name = domain.replace(/\.(co\.uk|uk|com|de|net|org|io)$/i, '');
+
+    // Split by common separators and capitalize
+    name = name.split(/[-_.]/)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+    return name;
+}
+
+/**
  * Check Google My Business for a single domain
  */
 async function checkGoogleMyBusiness(domain, credentials) {
     try {
-        // Using DataForSEO's Business Data API - Google My Business Live endpoint
+        // Use the Business Data API Live endpoint for immediate results
         const endpoint = '/business_data/google/my_business_info/live';
+        const location = getLocationFromDomain(domain);
+        const businessName = extractBusinessName(domain);
 
-        const requestData = [{
-            "keyword": domain,
-            "language_code": "de",
-            "location_code": 2276, // Germany
-            "depth": 1
-        }];
+        // Try multiple search strategies
+        const searchVariants = [
+            domain,              // Original domain
+            `https://${domain}`, // Full URL
+            businessName         // Extracted business name
+        ];
 
-        const response = await makeDataForSEORequest(endpoint, requestData, credentials);
+        console.log(`\n=== Checking domain: ${domain} ===`);
+        console.log(`Location: ${location.location_name}, Language: ${location.language_code}`);
 
-        // Check if we got valid results
-        if (response.tasks && response.tasks.length > 0) {
-            const task = response.tasks[0];
+        // Try each search variant
+        for (const keyword of searchVariants) {
+            const requestData = [{
+                "keyword": keyword,
+                "location_name": location.location_name,
+                "language_code": location.language_code
+            }];
 
-            if (task.status_code === 20000) {
-                const result = task.result?.[0];
+            try {
+                console.log(`\nTrying keyword: "${keyword}"`);
+                const response = await makeDataForSEORequest(endpoint, requestData, credentials);
 
-                if (result && result.items && result.items.length > 0) {
-                    const gmbData = result.items[0];
+                console.log('API Response status:', response.status_code);
+                console.log('API Response message:', response.status_message);
 
-                    return {
-                        domain: domain,
-                        status: 'found',
-                        gmbName: gmbData.title || 'N/A',
-                        address: gmbData.address || 'N/A',
-                        rating: gmbData.rating?.value || 0,
-                        reviewsCount: gmbData.rating?.votes_count || 0,
-                        phone: gmbData.phone || 'N/A',
-                        website: gmbData.url || 'N/A',
-                        category: gmbData.category || 'N/A',
-                        workingHours: gmbData.work_hours || null,
-                        rawData: gmbData
-                    };
-                } else {
-                    return {
-                        domain: domain,
-                        status: 'not-found',
-                        message: 'Kein Google My Business Eintrag gefunden'
-                    };
+                if (response.tasks && response.tasks.length > 0) {
+                    const task = response.tasks[0];
+
+                    console.log('Task ID:', task.id);
+                    console.log('Task status_code:', task.status_code);
+                    console.log('Task status_message:', task.status_message);
+
+                    if (task.status_code === 20000 && task.result?.[0]) {
+                        const result = task.result[0];
+
+                        console.log('Results found:', result.items_count);
+
+                        if (result.items && result.items.length > 0) {
+                            // Check each result for matching domain
+                            for (const item of result.items) {
+                                const itemWebsite = item.url || item.domain || '';
+                                const cleanDomain = domain.replace(/^www\./, '');
+                                const cleanItemWebsite = itemWebsite.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+
+                                console.log(`\nChecking result: ${item.title}`);
+                                console.log(`Website: ${itemWebsite}`);
+                                console.log(`Domain match: ${cleanItemWebsite.includes(cleanDomain) || cleanDomain.includes(cleanItemWebsite.split('/')[0])}`);
+
+                                // Check if domain matches
+                                if (cleanItemWebsite.includes(cleanDomain) || cleanDomain.includes(cleanItemWebsite.split('/')[0])) {
+                                    return {
+                                        domain: domain,
+                                        status: 'found',
+                                        gmbName: item.title || 'N/A',
+                                        address: item.address || 'N/A',
+                                        rating: item.rating?.value || 0,
+                                        reviewsCount: item.rating?.votes_count || 0,
+                                        phone: item.phone || 'N/A',
+                                        website: item.url || item.domain || 'N/A',
+                                        category: item.category || 'N/A',
+                                        workingHours: item.work_hours || null,
+                                        cid: item.cid || null
+                                    };
+                                }
+                            }
+
+                            // If no exact domain match but we found results,
+                            // return the first one as it's likely relevant
+                            const firstItem = result.items[0];
+                            console.log('\nNo exact match, returning first result');
+                            return {
+                                domain: domain,
+                                status: 'found',
+                                gmbName: firstItem.title || 'N/A',
+                                address: firstItem.address || 'N/A',
+                                rating: firstItem.rating?.value || 0,
+                                reviewsCount: firstItem.rating?.votes_count || 0,
+                                phone: firstItem.phone || 'N/A',
+                                website: firstItem.url || firstItem.domain || 'N/A',
+                                category: firstItem.category || 'N/A',
+                                workingHours: firstItem.work_hours || null,
+                                cid: firstItem.cid || null
+                            };
+                        }
+                    }
                 }
-            } else {
-                return {
-                    domain: domain,
-                    status: 'error',
-                    message: `API Error: ${task.status_message || 'Unknown error'}`
-                };
+            } catch (variantError) {
+                console.log(`Search variant "${keyword}" failed:`, variantError.message);
+                console.log('Error details:', variantError.response?.data);
+                continue;
             }
         }
 
         return {
             domain: domain,
-            status: 'error',
-            message: 'Keine gültige Antwort von der API'
+            status: 'not-found',
+            message: 'Kein Google My Business Eintrag gefunden'
         };
 
     } catch (error) {
+        console.error('GMB Search Error:', error.message);
+        console.error('Error details:', error.response?.data);
         return {
             domain: domain,
             status: 'error',
