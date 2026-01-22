@@ -70,18 +70,17 @@ function extractBusinessName(domain) {
 }
 
 /**
- * Search for GMB using Business Data API with multiple strategies
+ * Search for GMB using SERP API (local pack detection)
  */
-async function searchGMBwithBusinessAPI(domain, credentials) {
+async function searchGMBviaSERP(domain, credentials) {
     try {
-        const endpoint = '/business_data/google/my_business_info/live';
+        const endpoint = '/serp/google/organic/live/advanced';
         const location = getLocationFromDomain(domain);
         const businessName = extractBusinessName(domain);
 
         // Try multiple search strategies
         const searchVariants = [
-            businessName, // Just business name (most likely to work)
-            `${businessName} ${domain}`, // Business name + domain
+            businessName, // Just business name
             domain // Original domain
         ];
 
@@ -90,70 +89,62 @@ async function searchGMBwithBusinessAPI(domain, credentials) {
             const requestData = [{
                 "keyword": keyword,
                 "language_code": location.language_code,
-                "location_name": location.location_name
+                "location_name": location.location_name,
+                "device": "desktop",
+                "os": "windows"
             }];
 
             try {
                 const response = await makeDataForSEORequest(endpoint, requestData, credentials);
 
-                console.log(`Search variant: "${keyword}" in ${location.location_name}`);
-
                 if (response.tasks && response.tasks.length > 0) {
                     const task = response.tasks[0];
 
-                    console.log('Task status:', task.status_code, task.status_message);
+                    if (task.status_code === 20000 && task.result?.[0]?.items) {
+                        const items = task.result[0].items;
 
-                    if (task.status_code === 20000) {
-                        const result = task.result?.[0];
-
-                        if (!result) {
-                            console.log('No result object in task');
-                            continue;
-                        }
-
-                        const items = result.items || [];
-                        console.log('Found items:', items.length);
-
-                        // Check if we found results
-                        if (items.length > 0) {
-                            // Try to find exact domain match first
-                            for (const item of items) {
-                                if (item.domain && item.domain.includes(domain.replace(/^www\./, ''))) {
-                                    return {
-                                        domain: domain,
-                                        status: 'found',
-                                        gmbName: item.title || 'N/A',
-                                        address: item.address || 'N/A',
-                                        rating: item.rating?.value || 0,
-                                        reviewsCount: item.rating?.votes_count || 0,
-                                        phone: item.phone || 'N/A',
-                                        website: item.domain || 'N/A',
-                                        category: item.category || 'N/A',
-                                        workingHours: item.work_hours || null
-                                    };
+                        // Look for local_pack with GMB data
+                        for (const item of items) {
+                            if (item.type === 'local_pack' && item.items && item.items.length > 0) {
+                                // Try to find matching domain in local pack
+                                for (const localItem of item.items) {
+                                    const itemDomain = localItem.domain || localItem.url || '';
+                                    if (itemDomain.includes(domain.replace(/^www\./, ''))) {
+                                        return {
+                                            domain: domain,
+                                            status: 'found',
+                                            gmbName: localItem.title || 'N/A',
+                                            address: localItem.address || 'N/A',
+                                            rating: localItem.rating?.value || 0,
+                                            reviewsCount: localItem.rating?.votes_count || 0,
+                                            phone: localItem.phone || 'N/A',
+                                            website: localItem.domain || localItem.url || 'N/A',
+                                            category: localItem.category || 'N/A',
+                                            workingHours: localItem.work_hours || null
+                                        };
+                                    }
                                 }
-                            }
 
-                            // If no exact match, return first result
-                            const gmbData = items[0];
-                            return {
-                                domain: domain,
-                                status: 'found',
-                                gmbName: gmbData.title || 'N/A',
-                                address: gmbData.address || 'N/A',
-                                rating: gmbData.rating?.value || 0,
-                                reviewsCount: gmbData.rating?.votes_count || 0,
-                                phone: gmbData.phone || 'N/A',
-                                website: gmbData.domain || 'N/A',
-                                category: gmbData.category || 'N/A',
-                                workingHours: gmbData.work_hours || null
-                            };
+                                // If no exact match but found local pack, return first result
+                                const localResult = item.items[0];
+                                return {
+                                    domain: domain,
+                                    status: 'found',
+                                    gmbName: localResult.title || 'N/A',
+                                    address: localResult.address || 'N/A',
+                                    rating: localResult.rating?.value || 0,
+                                    reviewsCount: localResult.rating?.votes_count || 0,
+                                    phone: localResult.phone || 'N/A',
+                                    website: localResult.domain || localResult.url || 'N/A',
+                                    category: localResult.category || 'N/A',
+                                    workingHours: localResult.work_hours || null
+                                };
+                            }
                         }
                     }
                 }
             } catch (variantError) {
-                // Continue to next variant if this one fails
-                console.log(`Search variant "${keyword}" failed, trying next...`);
+                console.log(`Search variant "${keyword}" failed:`, variantError.message);
                 continue;
             }
         }
@@ -177,8 +168,8 @@ async function searchGMBwithBusinessAPI(domain, credentials) {
  * Check Google My Business for a single domain
  */
 async function checkGoogleMyBusiness(domain, credentials) {
-    // Use Business Data API for GMB detection
-    return await searchGMBwithBusinessAPI(domain, credentials);
+    // Use SERP API for GMB detection via local_pack
+    return await searchGMBviaSERP(domain, credentials);
 }
 
 /**
