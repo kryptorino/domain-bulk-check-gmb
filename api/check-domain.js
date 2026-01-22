@@ -85,11 +85,20 @@ async function searchGMBwithBusinessAPI(domain, credentials) {
             try {
                 const response = await makeDataForSEORequest(endpoint, requestData, credentials);
 
+                console.log(`Search variant: "${keyword}"`);
+                console.log('API Response:', JSON.stringify(response, null, 2));
+
                 if (response.tasks && response.tasks.length > 0) {
                     const task = response.tasks[0];
 
+                    console.log('Task status_code:', task.status_code);
+                    console.log('Task status_message:', task.status_message);
+                    console.log('Task result:', JSON.stringify(task.result, null, 2));
+
                     if (task.status_code === 20000 && task.result?.[0]?.items) {
                         const items = task.result[0].items;
+
+                        console.log('Found items:', items.length);
 
                         // Check if we found results
                         if (items.length > 0) {
