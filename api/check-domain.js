@@ -32,14 +32,26 @@ async function makeDataForSEORequest(endpoint, data, credentials) {
  */
 function getLocationFromDomain(domain) {
     if (domain.endsWith('.co.uk') || domain.endsWith('.uk')) {
-        return { location_code: 2826, language_code: 'en' }; // United Kingdom
+        return {
+            location_name: 'United Kingdom',
+            language_code: 'en'
+        };
     } else if (domain.endsWith('.de')) {
-        return { location_code: 2276, language_code: 'de' }; // Germany
+        return {
+            location_name: 'Germany',
+            language_code: 'de'
+        };
     } else if (domain.endsWith('.com') || domain.endsWith('.net')) {
-        return { location_code: 2840, language_code: 'en' }; // United States
+        return {
+            location_name: 'United States',
+            language_code: 'en'
+        };
     }
     // Default to UK for most cases
-    return { location_code: 2826, language_code: 'en' };
+    return {
+        location_name: 'United Kingdom',
+        language_code: 'en'
+    };
 }
 
 /**
@@ -78,26 +90,28 @@ async function searchGMBwithBusinessAPI(domain, credentials) {
             const requestData = [{
                 "keyword": keyword,
                 "language_code": location.language_code,
-                "location_code": location.location_code,
-                "depth": 10
+                "location_name": location.location_name
             }];
 
             try {
                 const response = await makeDataForSEORequest(endpoint, requestData, credentials);
 
-                console.log(`Search variant: "${keyword}"`);
-                console.log('API Response:', JSON.stringify(response, null, 2));
+                console.log(`Search variant: "${keyword}" in ${location.location_name}`);
 
                 if (response.tasks && response.tasks.length > 0) {
                     const task = response.tasks[0];
 
-                    console.log('Task status_code:', task.status_code);
-                    console.log('Task status_message:', task.status_message);
-                    console.log('Task result:', JSON.stringify(task.result, null, 2));
+                    console.log('Task status:', task.status_code, task.status_message);
 
-                    if (task.status_code === 20000 && task.result?.[0]?.items) {
-                        const items = task.result[0].items;
+                    if (task.status_code === 20000) {
+                        const result = task.result?.[0];
 
+                        if (!result) {
+                            console.log('No result object in task');
+                            continue;
+                        }
+
+                        const items = result.items || [];
                         console.log('Found items:', items.length);
 
                         // Check if we found results
