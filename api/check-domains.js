@@ -79,65 +79,64 @@ async function checkGoogleMyBusiness(domain, credentials) {
             businessName
         ];
 
-        for (const keyword of searchVariants) {
-            const requestData = [{
-                "keyword": keyword,
-                "location_name": location.location_name,
-                "language_code": location.language_code
-            }];
+        // Try ONLY the business name (most efficient)
+        const requestData = [{
+            "keyword": businessName,
+            "location_name": location.location_name,
+            "language_code": location.language_code
+        }];
 
-            try {
-                const response = await makeDataForSEORequest(endpoint, requestData, credentials);
+        try {
+            const response = await makeDataForSEORequest(endpoint, requestData, credentials);
 
-                if (response.tasks && response.tasks.length > 0) {
-                    const task = response.tasks[0];
+            if (response.tasks && response.tasks.length > 0) {
+                const task = response.tasks[0];
 
-                    if (task.status_code === 20000 && task.result?.[0]) {
-                        const result = task.result[0];
+                if (task.status_code === 20000 && task.result?.[0]) {
+                    const result = task.result[0];
 
-                        if (result.items && result.items.length > 0) {
-                            for (const item of result.items) {
-                                const itemWebsite = item.url || item.domain || '';
-                                const cleanDomain = domain.replace(/^www\./, '');
-                                const cleanItemWebsite = itemWebsite.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+                    if (result.items && result.items.length > 0) {
+                        for (const item of result.items) {
+                            const itemWebsite = item.url || item.domain || '';
+                            const cleanDomain = domain.replace(/^www\./, '');
+                            const cleanItemWebsite = itemWebsite.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
 
-                                if (cleanItemWebsite.includes(cleanDomain) || cleanDomain.includes(cleanItemWebsite.split('/')[0])) {
-                                    return {
-                                        domain: domain,
-                                        status: 'found',
-                                        gmbName: item.title || 'N/A',
-                                        address: item.address || 'N/A',
-                                        rating: item.rating?.value || 0,
-                                        reviewsCount: item.rating?.votes_count || 0,
-                                        phone: item.phone || 'N/A',
-                                        website: item.url || item.domain || 'N/A',
-                                        category: item.category || 'N/A',
-                                        workingHours: item.work_hours || null,
-                                        cid: item.cid || null
-                                    };
-                                }
+                            if (cleanItemWebsite.includes(cleanDomain) || cleanDomain.includes(cleanItemWebsite.split('/')[0])) {
+                                return {
+                                    domain: domain,
+                                    status: 'found',
+                                    gmbName: item.title || 'N/A',
+                                    address: item.address || 'N/A',
+                                    rating: item.rating?.value || 0,
+                                    reviewsCount: item.rating?.votes_count || 0,
+                                    phone: item.phone || 'N/A',
+                                    website: item.url || item.domain || 'N/A',
+                                    category: item.category || 'N/A',
+                                    workingHours: item.work_hours || null,
+                                    cid: item.cid || null
+                                };
                             }
-
-                            const firstItem = result.items[0];
-                            return {
-                                domain: domain,
-                                status: 'found',
-                                gmbName: firstItem.title || 'N/A',
-                                address: firstItem.address || 'N/A',
-                                rating: firstItem.rating?.value || 0,
-                                reviewsCount: firstItem.rating?.votes_count || 0,
-                                phone: firstItem.phone || 'N/A',
-                                website: firstItem.url || firstItem.domain || 'N/A',
-                                category: firstItem.category || 'N/A',
-                                workingHours: firstItem.work_hours || null,
-                                cid: firstItem.cid || null
-                            };
                         }
+
+                        const firstItem = result.items[0];
+                        return {
+                            domain: domain,
+                            status: 'found',
+                            gmbName: firstItem.title || 'N/A',
+                            address: firstItem.address || 'N/A',
+                            rating: firstItem.rating?.value || 0,
+                            reviewsCount: firstItem.rating?.votes_count || 0,
+                            phone: firstItem.phone || 'N/A',
+                            website: firstItem.url || firstItem.domain || 'N/A',
+                            category: firstItem.category || 'N/A',
+                            workingHours: firstItem.work_hours || null,
+                            cid: firstItem.cid || null
+                        };
                     }
                 }
-            } catch (variantError) {
-                continue;
             }
+        } catch (error) {
+            // Business name search failed, no GMB found
         }
 
         return {
