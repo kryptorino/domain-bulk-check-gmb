@@ -183,8 +183,18 @@ async function startCheck() {
     resultsSection.classList.remove('active');
     startCheckBtn.disabled = true;
 
-    // Reset progress
-    updateProgress(0, domains.length);
+    // Reset progress and results
+    currentResults = [];
+
+    // Animate progress bar while processing
+    let currentProgress = 0;
+    const progressInterval = setInterval(() => {
+        if (currentProgress < 90) {
+            currentProgress += 1;
+            progressFill.style.width = `${currentProgress}%`;
+            progressText.textContent = `Überprüfung läuft... (${Math.floor(domains.length * currentProgress / 100)} von ${domains.length})`;
+        }
+    }, (domains.length * 100)); // Adjust speed based on number of domains
 
     try {
         const response = await fetch(`${API_ENDPOINT}/check-domains`, {
@@ -200,6 +210,8 @@ async function startCheck() {
                 }
             })
         });
+
+        clearInterval(progressInterval);
 
         if (!response.ok) {
             const errorData = await response.json();
@@ -222,6 +234,7 @@ async function startCheck() {
         resultsSection.classList.add('active');
 
     } catch (error) {
+        clearInterval(progressInterval);
         console.error('Error checking domains:', error);
         showError(`❌ Fehler beim Überprüfen der Domains: ${error.message}`);
     } finally {

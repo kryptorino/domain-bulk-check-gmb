@@ -200,7 +200,108 @@ async function checkGoogleMyBusiness(domain, credentials) {
 }
 
 /**
- * Endpoint to check multiple domains
+ * Process domains in batches
+ */
+async function processBatch(domains, credentials, batchSize = 10) {
+    const results = [];
+
+    // Split domains into batches
+    for (let i = 0; i < domains.length; i += batchSize) {
+        const batch = domains.slice(i, i + batchSize);
+
+        console.log(`\nProcessing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(domains.length / batchSize)}`);
+        console.log(`Domains in this batch: ${batch.length}`);
+
+        // Process batch in parallel
+        const batchPromises = batch.map(domain =>
+            checkGoogleMyBusiness(domain.trim(), credentials)
+        );
+
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+
+        console.log(`Batch complete. Total processed: ${results.length}/${domains.length}`);
+
+        // Small delay between batches to avoid overwhelming the API
+        if (i + batchSize < domains.length) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+
+    return results;
+}
+
+/**
+ * Endpoint to check multiple domains with Server-Sent Events for progress
+ */
+app.post('/api/check-domains-stream', async (req, res) => {
+    const { domains, credentials } = req.body;
+
+    if (!domains || !Array.isArray(domains) || domains.length === 0) {
+        return res.status(400).json({ error: 'Domains array is required' });
+    }
+
+    if (!credentials || !credentials.login || !credentials.password) {
+        return res.status(400).json({ error: 'API credentials are required' });
+    }
+
+    // Set up SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const cleanDomains = domains.map(d => d.trim()).filter(d => d);
+    const results = [];
+    const batchSize = 10;
+
+    try {
+        for (let i = 0; i < cleanDomains.length; i += batchSize) {
+            const batch = cleanDomains.slice(i, i + batchSize);
+
+            // Process batch in parallel
+            const batchPromises = batch.map(domain =>
+                checkGoogleMyBusiness(domain, credentials)
+            );
+
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
+
+            // Send progress update
+            res.write(`data: ${JSON.stringify({
+                type: 'progress',
+                current: results.length,
+                total: cleanDomains.length,
+                results: batchResults
+            })}\n\n`);
+
+            // Small delay between batches
+            if (i + batchSize < cleanDomains.length) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        // Send completion
+        res.write(`data: ${JSON.stringify({
+            type: 'complete',
+            results: results,
+            total: results.length,
+            found: results.filter(r => r.status === 'found').length,
+            notFound: results.filter(r => r.status === 'not-found').length,
+            errors: results.filter(r => r.status === 'error').length
+        })}\n\n`);
+
+    } catch (error) {
+        res.write(`data: ${JSON.stringify({
+            type: 'error',
+            message: error.message
+        })}\n\n`);
+    }
+
+    res.end();
+});
+
+/**
+ * Endpoint to check multiple domains (standard POST request)
  */
 app.post('/api/check-domains', async (req, res) => {
     const { domains, credentials } = req.body;
@@ -213,20 +314,10 @@ app.post('/api/check-domains', async (req, res) => {
         return res.status(400).json({ error: 'API credentials are required' });
     }
 
-    const results = [];
+    const cleanDomains = domains.map(d => d.trim()).filter(d => d);
 
-    // Process domains sequentially to avoid rate limiting
-    for (const domain of domains) {
-        const cleanDomain = domain.trim();
-        if (cleanDomain) {
-            console.log(`Checking domain: ${cleanDomain}`);
-            const result = await checkGoogleMyBusiness(cleanDomain, credentials);
-            results.push(result);
-
-            // Small delay to avoid rate limiting (adjust as needed)
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-    }
+    // Process in batches of 10
+    const results = await processBatch(cleanDomains, credentials, 10);
 
     res.json({
         success: true,
