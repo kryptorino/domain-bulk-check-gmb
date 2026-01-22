@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domain Bulk Check - Google My Business</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .api-config {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .api-config h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #2d3748;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .upload-section {
+            margin-bottom: 30px;
+        }
+
+        .upload-section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #2d3748;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 2px dashed #cbd5e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            border-style: solid;
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 8px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .progress-section {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .progress-section.active {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: #4a5568;
+            text-align: center;
+        }
+
+        .results-section {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .results-header h2 {
+            font-size: 20px;
+            color: #2d3748;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-card.success {
+            border-left-color: #48bb78;
+        }
+
+        .stat-card.error {
+            border-left-color: #f56565;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-top: 5px;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .results-table th {
+            background: #f7fafc;
+            padding: 12px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .results-table td {
+            padding: 12px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
+
+        .results-table tr:hover {
+            background: #f7fafc;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge.found {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-badge.not-found {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .status-badge.error {
+            background: #feebc8;
+            color: #7c2d12;
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-export {
+            padding: 8px 16px;
+            background: #48bb78;
+            color: white;
+            font-size: 13px;
+        }
+
+        .btn-export:hover {
+            background: #38a169;
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #742a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Domain Bulk Check Tool</h1>
+            <p>Überprüfe mehrere Domains gleichzeitig auf Google My Business Einträge</p>
+        </div>
+
+        <div class="main-content">
+            <!-- API Configuration -->
+            <div class="api-config">
+                <h2>⚙️ DataForSEO API Konfiguration</h2>
+                <div class="input-group">
+                    <label for="api-login">API Login</label>
+                    <input type="text" id="api-login" placeholder="Dein DataForSEO Login">
+                </div>
+                <div class="input-group">
+                    <label for="api-password">API Password</label>
+                    <input type="password" id="api-password" placeholder="Dein DataForSEO Password">
+                </div>
+                <p class="help-text">🔐 Deine API-Credentials werden lokal gespeichert und nur für API-Anfragen verwendet.</p>
+            </div>
+
+            <!-- Domain Upload -->
+            <div class="upload-section">
+                <h2>📋 Domains hochladen</h2>
+                <textarea id="domains-input" placeholder="Füge deine Domains hier ein (eine Domain pro Zeile)&#10;&#10;Beispiel:&#10;example.com&#10;google.com&#10;amazon.de"></textarea>
+                <p class="help-text">💡 Tipp: Füge eine Domain pro Zeile ein. Du kannst auch mehrere Domains auf einmal kopieren.</p>
+
+                <div class="button-group">
+                    <button class="btn-primary" id="start-check">🚀 Check starten</button>
+                    <button class="btn-secondary" id="clear-btn">🗑️ Leeren</button>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div class="progress-section" id="progress-section">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <p class="progress-text" id="progress-text">0 von 0 Domains überprüft</p>
+            </div>
+
+            <!-- Error Message -->
+            <div class="error-message" id="error-message"></div>
+
+            <!-- Results -->
+            <div class="results-section" id="results-section">
+                <div class="results-header">
+                    <h2>📊 Ergebnisse</h2>
+                    <div class="export-buttons">
+                        <button class="btn-export" id="export-csv">📥 Als CSV exportieren</button>
+                        <button class="btn-export" id="export-json">📥 Als JSON exportieren</button>
+                    </div>
+                </div>
+
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-label">Gesamt</div>
+                        <div class="stat-value" id="stat-total">0</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-label">GMB Gefunden</div>
+                        <div class="stat-value" id="stat-found">0</div>
+                    </div>
+                    <div class="stat-card error">
+                        <div class="stat-label">Nicht Gefunden</div>
+                        <div class="stat-value" id="stat-not-found">0</div>
+                    </div>
+                    <div class="stat-card error">
+                        <div class="stat-label">Fehler</div>
+                        <div class="stat-value" id="stat-errors">0</div>
+                    </div>
+                </div>
+
+                <table class="results-table" id="results-table">
+                    <thead>
+                        <tr>
+                            <th>Domain</th>
+                            <th>Status</th>
+                            <th>GMB Name</th>
+                            <th>Adresse</th>
+                            <th>Bewertungen</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
