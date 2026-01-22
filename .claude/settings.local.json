@@ -12,7 +12,8 @@
       "Bash(npm install:*)",
       "Bash(vercel login)",
       "Bash(vercel:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(curl:*)"
     ]
   }
 }

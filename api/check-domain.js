@@ -97,11 +97,19 @@ async function searchGMBviaSERP(domain, credentials) {
             try {
                 const response = await makeDataForSEORequest(endpoint, requestData, credentials);
 
+                console.log(`\n=== API Call for "${keyword}" ===`);
+                console.log('Full response:', JSON.stringify(response, null, 2));
+
                 if (response.tasks && response.tasks.length > 0) {
                     const task = response.tasks[0];
 
+                    console.log('Task status_code:', task.status_code);
+                    console.log('Task status_message:', task.status_message);
+
                     if (task.status_code === 20000 && task.result?.[0]?.items) {
                         const items = task.result[0].items;
+                        console.log('Items found:', items.length);
+                        console.log('Item types:', items.map(i => i.type));
 
                         // Look for local_pack with GMB data
                         for (const item of items) {
