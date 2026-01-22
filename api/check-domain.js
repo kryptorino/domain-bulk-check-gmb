@@ -58,19 +58,19 @@ function extractBusinessName(domain) {
 }
 
 /**
- * Search for GMB via Google SERP (better detection)
+ * Search for GMB using Business Data API with multiple strategies
  */
-async function searchGMBviaSERP(domain, credentials) {
+async function searchGMBwithBusinessAPI(domain, credentials) {
     try {
-        const endpoint = '/serp/google/organic/live/advanced';
+        const endpoint = '/business_data/google/my_business_info/live';
         const location = getLocationFromDomain(domain);
         const businessName = extractBusinessName(domain);
 
         // Try multiple search strategies
         const searchVariants = [
-            domain, // Original domain
+            businessName, // Just business name (most likely to work)
             `${businessName} ${domain}`, // Business name + domain
-            businessName // Just business name
+            domain // Original domain
         ];
 
         // Try each search variant
@@ -79,97 +79,66 @@ async function searchGMBviaSERP(domain, credentials) {
                 "keyword": keyword,
                 "language_code": location.language_code,
                 "location_code": location.location_code,
-                "device": "desktop",
-                "os": "windows",
-                "depth": 100
+                "depth": 10
             }];
 
-            const response = await makeDataForSEORequest(endpoint, requestData, credentials);
+            try {
+                const response = await makeDataForSEORequest(endpoint, requestData, credentials);
 
-            if (response.tasks && response.tasks.length > 0) {
-                const task = response.tasks[0];
+                if (response.tasks && response.tasks.length > 0) {
+                    const task = response.tasks[0];
 
-                if (task.status_code === 20000 && task.result?.[0]?.items) {
-                    const items = task.result[0].items;
+                    if (task.status_code === 20000 && task.result?.[0]?.items) {
+                        const items = task.result[0].items;
 
-                    // Search for local_pack or knowledge_graph with GMB data
-                    for (const item of items) {
-                        // Check for local pack results
-                        if (item.type === 'local_pack' && item.items && item.items.length > 0) {
-                            // Check if any local pack item matches the domain
-                            for (const localItem of item.items) {
-                                if (localItem.url && localItem.url.includes(domain.replace(/^www\./, ''))) {
+                        // Check if we found results
+                        if (items.length > 0) {
+                            // Try to find exact domain match first
+                            for (const item of items) {
+                                if (item.domain && item.domain.includes(domain.replace(/^www\./, ''))) {
                                     return {
                                         domain: domain,
                                         status: 'found',
-                                        gmbName: localItem.title || 'N/A',
-                                        address: localItem.address || 'N/A',
-                                        rating: localItem.rating?.value || 0,
-                                        reviewsCount: localItem.rating?.votes_count || 0,
-                                        phone: localItem.phone || 'N/A',
-                                        website: localItem.url || 'N/A',
-                                        category: localItem.category || 'N/A',
-                                        workingHours: localItem.work_hours || null
+                                        gmbName: item.title || 'N/A',
+                                        address: item.address || 'N/A',
+                                        rating: item.rating?.value || 0,
+                                        reviewsCount: item.rating?.votes_count || 0,
+                                        phone: item.phone || 'N/A',
+                                        website: item.domain || 'N/A',
+                                        category: item.category || 'N/A',
+                                        workingHours: item.work_hours || null
                                     };
                                 }
                             }
+
                             // If no exact match, return first result
-                            const localResult = item.items[0];
+                            const gmbData = items[0];
                             return {
                                 domain: domain,
                                 status: 'found',
-                                gmbName: localResult.title || 'N/A',
-                                address: localResult.address || 'N/A',
-                                rating: localResult.rating?.value || 0,
-                                reviewsCount: localResult.rating?.votes_count || 0,
-                                phone: localResult.phone || 'N/A',
-                                website: localResult.url || 'N/A',
-                                category: localResult.category || 'N/A',
-                                workingHours: localResult.work_hours || null
-                            };
-                        }
-
-                        // Check for knowledge graph with business info
-                        if (item.type === 'knowledge_graph' && item.cid) {
-                            return {
-                                domain: domain,
-                                status: 'found',
-                                gmbName: item.title || 'N/A',
-                                address: item.address || 'N/A',
-                                rating: item.rating?.value || 0,
-                                reviewsCount: item.rating?.votes_count || 0,
-                                phone: item.phone || 'N/A',
-                                website: item.url || 'N/A',
-                                category: item.category || 'N/A',
-                                workingHours: item.work_hours || null
-                            };
-                        }
-
-                        // Check for maps results
-                        if (item.type === 'maps' && item.items && item.items.length > 0) {
-                            const mapResult = item.items[0];
-                            return {
-                                domain: domain,
-                                status: 'found',
-                                gmbName: mapResult.title || 'N/A',
-                                address: mapResult.address || 'N/A',
-                                rating: mapResult.rating?.value || 0,
-                                reviewsCount: mapResult.rating?.votes_count || 0,
-                                phone: mapResult.phone || 'N/A',
-                                website: mapResult.url || 'N/A',
-                                category: mapResult.category || 'N/A',
-                                workingHours: mapResult.work_hours || null
+                                gmbName: gmbData.title || 'N/A',
+                                address: gmbData.address || 'N/A',
+                                rating: gmbData.rating?.value || 0,
+                                reviewsCount: gmbData.rating?.votes_count || 0,
+                                phone: gmbData.phone || 'N/A',
+                                website: gmbData.domain || 'N/A',
+                                category: gmbData.category || 'N/A',
+                                workingHours: gmbData.work_hours || null
                             };
                         }
                     }
                 }
+            } catch (variantError) {
+                // Continue to next variant if this one fails
+                console.log(`Search variant "${keyword}" failed, trying next...`);
+                continue;
             }
         }
 
         return {
             domain: domain,
             status: 'not-found',
-            message: 'Kein Google My Business Eintrag in den Suchergebnissen gefunden'
+            message: 'Kein Google My Business Eintrag gefunden'
         };
 
     } catch (error) {
@@ -185,8 +154,8 @@ async function searchGMBviaSERP(domain, credentials) {
  * Check Google My Business for a single domain
  */
 async function checkGoogleMyBusiness(domain, credentials) {
-    // Use SERP API for better GMB detection
-    return await searchGMBviaSERP(domain, credentials);
+    // Use Business Data API for GMB detection
+    return await searchGMBwithBusinessAPI(domain, credentials);
 }
 
 /**
